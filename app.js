@@ -4,6 +4,7 @@ let currentView = "home";
 let activeSession = null;
 let restTimer = null;
 let restRemaining = 0;
+let proMode = localStorage.getItem("proMode") === "true";
 
 async function init() {
   await seedExercises();
@@ -17,6 +18,7 @@ function renderNav() {
     <button data-view="home" class="${currentView === "home" ? "active" : ""}">Home</button>
     <button data-view="plans" class="${currentView === "plans" ? "active" : ""}">Pläne</button>
     <button data-view="history" class="${currentView === "history" ? "active" : ""}">Verlauf</button>
+    <button data-view="settings" class="${currentView === "settings" ? "active" : ""}">Einstellungen</button>
   `;
   nav.querySelectorAll("button").forEach(btn => {
     btn.onclick = () => { currentView = btn.dataset.view; renderNav(); render(); };
@@ -29,6 +31,30 @@ async function render() {
   if (currentView === "home") return renderHome(main);
   if (currentView === "plans") return renderPlans(main);
   if (currentView === "history") return renderHistory(main);
+  if (currentView === "settings") return renderSettings(main);
+}
+
+function renderSettings(main) {
+  main.innerHTML = `
+    <div class="card">
+      <h2>Einstellungen</h2>
+      <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center">
+        <div>
+          <strong>Pro-Modus</strong>
+          <p class="empty" style="padding:4px 0; text-align:left; font-size:0.9rem">Mehr Daten, Analytics & bessere Shares</p>
+        </div>
+        <button id="proToggle" class="${proMode ? "success" : "secondary"}">${proMode ? "An" : "Aus"}</button>
+      </div>
+    </div>
+    <div class="card">
+      <p style="color:var(--muted); font-size:0.9rem">Alle Daten bleiben lokal auf deinem Gerät. Nichts wird übertragen.</p>
+    </div>
+  `;
+  main.querySelector("#proToggle").onclick = () => {
+    proMode = !proMode;
+    localStorage.setItem("proMode", proMode);
+    renderSettings(main);
+  };
 }
 
 async function renderHome(main) {
@@ -73,7 +99,7 @@ async function renderPlans(main) {
             <option value="">Übung…</option>
             ${exercises.map(e => `<option value="${e.id}">${e.name}</option>`).join("")}
           </select>
-          <input id="sets-${p.id}" type="number" value="3" min="1" style="width:60px">
+          <input id="sets-${p.id}" type="number" value="3" min="1" style="width:70px">
           <button data-add="${p.id}">+</button>
         </div>
         <button class="danger" data-del="${p.id}" style="margin-top:8px">Plan löschen</button>
@@ -292,11 +318,39 @@ async function finishSession() {
     })).filter(ex => ex.sets.length > 0)
   };
   await put("sessions", session);
-  activeSession = null;
-  stopRest();
-  currentView = "history";
-  renderNav();
-  render();
+
+  // Show share summary
+  const exercises = await getAll("exercises");
+  const totalSets = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
+  const volume = session.exercises.reduce((sum, ex) => sum + ex.sets.reduce((s, set) => s + (set.weight * set.reps), 0), 0);
+
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div class="share-preview">
+      <h2>Training fertig!</h2>
+      <p style="color:var(--muted); margin-bottom:16px">${new Date().toLocaleDateString("de-DE")}</p>
+      <div style="display:flex; justify-content:space-around; margin:20px 0">
+        <div><div class="stat">${session.exercises.length}</div><div>Uebungen</div></div>
+        <div><div class="stat">${totalSets}</div><div>Saetze</div></div>
+        <div><div class="stat">${Math.round(volume)}kg</div><div>Volumen</div></div>
+      </div>
+      <div style="text-align:left; margin-top:16px; font-size:0.95rem">
+        ${session.exercises.map(ex => {
+          const name = exercises.find(e => e.id === ex.exId)?.name || "?";
+          return `<div style="margin:6px 0">${name}: ${ex.sets.map(s => `${s.weight}kg × ${s.reps}`).join(", ")}</div>`;
+        }).join("")}
+      </div>
+      <p style="margin-top:20px; font-size:0.8rem; color:var(--muted)">Nachtgarten Sport</p>
+    </div>
+    <button id="backHome" style="width:100%; margin-top:16px">Zurueck zum Home</button>
+  `;
+  main.querySelector("#backHome").onclick = () => {
+    activeSession = null;
+    stopRest();
+    currentView = "home";
+    renderNav();
+    render();
+  };
 }
 
 init();
