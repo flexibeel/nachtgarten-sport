@@ -1,10 +1,6 @@
 # Nachtgarten Sport
 
-Persönliche Sport-Tracking PWA.
+Neue Fassung der Trainings-App. Alles bleibt auf dem Gerät, ohne Konto.
 
-## Features
-- Pläne anlegen
-- Sessions mit Prefill der letzten Werte
-- Rest-Timer
-- Verlauf
-- Alles lokal (IndexedDB)
+Der Zweig `main` ist die alte Seite, die GitHub Pages ausliefert.
+Diese Fassung braucht einen Server und ersetzt die Lesezeichen-Adresse deshalb nicht.
