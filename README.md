@@ -1,10 +1,6 @@
 # Nachtgarten Sport
 
-Persönliche Sport-Tracking PWA.
+Die laufende Seite ist https://flexibeel.github.io/nachtgarten-sport/
 
-## Features
-- Pläne anlegen
-- Sessions mit Prefill der letzten Werte
-- Rest-Timer
-- Verlauf
-- Alles lokal (IndexedDB)
+Der Quelltext der neuen App liegt auf dem Zweig `neu`.
+Dieser Zweig `main` ist die fertige Seite für GitHub Pages.
