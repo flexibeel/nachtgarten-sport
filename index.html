@@ -11,10 +11,21 @@
 <body>
   <div id="app">
     <header class="header">
-      <h1>Nachtgarten</h1>
-      <nav id="nav"></nav>
+      <h1 id="appTitle">Nachtgarten</h1>
     </header>
     <main id="main"></main>
+    <nav id="bottomNav"></nav>
+  </div>
+  <div id="timerOverlay" class="timer-overlay hidden">
+    <div class="timer-fullscreen">
+      <div id="timerBig" class="timer-big">1:30</div>
+      <div class="timer-controls">
+        <button id="timerMinus">-15s</button>
+        <button id="timerSkip" class="secondary">Skip</button>
+        <button id="timerPlus">+15s</button>
+      </div>
+      <button id="timerClose" class="secondary" style="margin-top:24px; width:100%">Zurück</button>
+    </div>
   </div>
   <script type="module" src="app.js"></script>
 </body>
