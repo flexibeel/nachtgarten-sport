@@ -5,15 +5,42 @@ let activeSession = null;
 let restTimer = null;
 let restRemaining = 0;
 let proMode = localStorage.getItem("proMode") === "true";
+let userName = localStorage.getItem("userName") || "";
+let timerFullscreen = false;
 
 async function init() {
   await seedExercises();
+  if (!userName) {
+    showNamePrompt();
+  } else {
+    document.getElementById("appTitle").textContent = userName;
+  }
   renderNav();
   await render();
 }
 
+function showNamePrompt() {
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div class="card" style="margin-top:40px; text-align:center">
+      <h2>Wie soll ich dich nennen?</h2>
+      <p style="color:var(--muted); margin:12px 0">Nur lokal gespeichert.</p>
+      <input id="nameInput" placeholder="Name oder Alias" style="margin:16px 0">
+      <button id="saveName" style="width:100%">Weiter</button>
+    </div>
+  `;
+  document.getElementById("saveName").onclick = () => {
+    const val = document.getElementById("nameInput").value.trim();
+    if (!val) return;
+    userName = val;
+    localStorage.setItem("userName", val);
+    document.getElementById("appTitle").textContent = val;
+    render();
+  };
+}
+
 function renderNav() {
-  const nav = document.getElementById("nav");
+  const nav = document.getElementById("bottomNav");
   nav.innerHTML = `
     <button data-view="home" class="${currentView === "home" ? "active" : ""}">Home</button>
     <button data-view="plans" class="${currentView === "plans" ? "active" : ""}">Pläne</button>
@@ -21,11 +48,17 @@ function renderNav() {
     <button data-view="settings" class="${currentView === "settings" ? "active" : ""}">Einstellungen</button>
   `;
   nav.querySelectorAll("button").forEach(btn => {
-    btn.onclick = () => { currentView = btn.dataset.view; renderNav(); render(); };
+    btn.onclick = () => {
+      if (activeSession) return;
+      currentView = btn.dataset.view;
+      renderNav();
+      render();
+    };
   });
 }
 
 async function render() {
+  if (!userName) return;
   const main = document.getElementById("main");
   if (activeSession) return renderLiveSession(main);
   if (currentView === "home") return renderHome(main);
@@ -38,22 +71,34 @@ function renderSettings(main) {
   main.innerHTML = `
     <div class="card">
       <h2>Einstellungen</h2>
-      <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center">
+      <div style="margin-top:16px">
+        <label>Name / Alias</label>
+        <input id="editName" value="${userName}" style="margin:8px 0">
+        <button id="saveNameEdit" style="width:100%">Speichern</button>
+      </div>
+      <div style="margin-top:24px; display:flex; justify-content:space-between; align-items:center">
         <div>
           <strong>Pro-Modus</strong>
-          <p class="empty" style="padding:4px 0; text-align:left; font-size:0.9rem">Mehr Daten, Analytics & bessere Shares</p>
+          <p style="color:var(--muted); font-size:0.9rem">Mehr Daten & bessere Shares</p>
         </div>
         <button id="proToggle" class="${proMode ? "success" : "secondary"}">${proMode ? "An" : "Aus"}</button>
       </div>
     </div>
     <div class="card">
-      <p style="color:var(--muted); font-size:0.9rem">Alle Daten bleiben lokal auf deinem Gerät. Nichts wird übertragen.</p>
+      <p style="color:var(--muted); font-size:0.9rem">Alle Daten bleiben lokal auf deinem Gerät.</p>
     </div>
   `;
   main.querySelector("#proToggle").onclick = () => {
     proMode = !proMode;
     localStorage.setItem("proMode", proMode);
     renderSettings(main);
+  };
+  main.querySelector("#saveNameEdit").onclick = () => {
+    const val = main.querySelector("#editName").value.trim();
+    if (!val) return;
+    userName = val;
+    localStorage.setItem("userName", val);
+    document.getElementById("appTitle").textContent = val;
   };
 }
 
@@ -208,12 +253,15 @@ async function startFromPlan(planId) {
 
 async function renderLiveSession(main) {
   const exercises = await getAll("exercises");
-  main.innerHTML = `
-    <div class="card">
-      <h2>Aktive Session</h2>
-      <div id="timer" class="timer">${formatTime(restRemaining)}</div>
-      <button id="skipRest" class="secondary" style="width:100%">Timer überspringen</button>
+  const timerHtml = restRemaining > 0 ? `
+    <div class="timer-banner" id="timerBanner">
+      <span>${formatTime(restRemaining)}</span>
+      <span style="font-size:0.9rem; opacity:0.9">Tippen für Vollbild</span>
     </div>
+  ` : "";
+
+  main.innerHTML = `
+    ${timerHtml}
     ${activeSession.exercises.map((ex, i) => {
       const name = exercises.find(e => e.id === ex.exId)?.name || "Übung";
       return `
@@ -241,6 +289,9 @@ async function renderLiveSession(main) {
     <button id="finish" class="success" style="width:100%;margin-top:8px">Session beenden</button>
     <button id="cancel" class="danger" style="width:100%;margin-top:8px">Abbrechen</button>
   `;
+
+  const banner = document.getElementById("timerBanner");
+  if (banner) banner.onclick = () => openTimerFullscreen();
 
   main.querySelectorAll("input").forEach(inp => {
     inp.onchange = () => {
@@ -275,7 +326,23 @@ async function renderLiveSession(main) {
 
   main.querySelector("#finish").onclick = finishSession;
   main.querySelector("#cancel").onclick = () => { activeSession = null; stopRest(); render(); };
-  main.querySelector("#skipRest").onclick = () => { stopRest(); renderLiveSession(main); };
+}
+
+function openTimerFullscreen() {
+  const overlay = document.getElementById("timerOverlay");
+  overlay.classList.remove("hidden");
+  updateTimerDisplay();
+  document.getElementById("timerClose").onclick = () => overlay.classList.add("hidden");
+  document.getElementById("timerSkip").onclick = () => { stopRest(); overlay.classList.add("hidden"); render(); };
+  document.getElementById("timerMinus").onclick = () => { restRemaining = Math.max(0, restRemaining - 15); updateTimerDisplay(); };
+  document.getElementById("timerPlus").onclick = () => { restRemaining += 15; updateTimerDisplay(); };
+}
+
+function updateTimerDisplay() {
+  const big = document.getElementById("timerBig");
+  if (big) big.textContent = formatTime(restRemaining);
+  const banner = document.getElementById("timerBanner");
+  if (banner) banner.querySelector("span").textContent = formatTime(restRemaining);
 }
 
 function startRest(seconds) {
@@ -283,13 +350,15 @@ function startRest(seconds) {
   restRemaining = seconds;
   restTimer = setInterval(() => {
     restRemaining--;
-    const el = document.getElementById("timer");
-    if (el) el.textContent = formatTime(restRemaining);
+    updateTimerDisplay();
     if (restRemaining <= 0) {
       stopRest();
       if (navigator.vibrate) navigator.vibrate(200);
+      document.getElementById("timerOverlay").classList.add("hidden");
+      render();
     }
   }, 1000);
+  render();
 }
 
 function stopRest() {
@@ -318,8 +387,9 @@ async function finishSession() {
     })).filter(ex => ex.sets.length > 0)
   };
   await put("sessions", session);
+  activeSession = null;
+  stopRest();
 
-  // Show share summary
   const exercises = await getAll("exercises");
   const totalSets = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
   const volume = session.exercises.reduce((sum, ex) => sum + ex.sets.reduce((s, set) => s + (set.weight * set.reps), 0), 0);
@@ -328,10 +398,10 @@ async function finishSession() {
   main.innerHTML = `
     <div class="share-preview">
       <h2>Training fertig!</h2>
-      <p style="color:var(--muted); margin-bottom:16px">${new Date().toLocaleDateString("de-DE")}</p>
+      <p style="color:var(--muted); margin-bottom:16px">${userName} · ${new Date().toLocaleDateString("de-DE")}</p>
       <div style="display:flex; justify-content:space-around; margin:20px 0">
-        <div><div class="stat">${session.exercises.length}</div><div>Uebungen</div></div>
-        <div><div class="stat">${totalSets}</div><div>Saetze</div></div>
+        <div><div class="stat">${session.exercises.length}</div><div>Übungen</div></div>
+        <div><div class="stat">${totalSets}</div><div>Sätze</div></div>
         <div><div class="stat">${Math.round(volume)}kg</div><div>Volumen</div></div>
       </div>
       <div style="text-align:left; margin-top:16px; font-size:0.95rem">
@@ -342,11 +412,9 @@ async function finishSession() {
       </div>
       <p style="margin-top:20px; font-size:0.8rem; color:var(--muted)">Nachtgarten Sport</p>
     </div>
-    <button id="backHome" style="width:100%; margin-top:16px">Zurueck zum Home</button>
+    <button id="backHome" style="width:100%; margin-top:16px">Zurück</button>
   `;
   main.querySelector("#backHome").onclick = () => {
-    activeSession = null;
-    stopRest();
     currentView = "home";
     renderNav();
     render();
